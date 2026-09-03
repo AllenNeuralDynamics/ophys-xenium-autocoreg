@@ -62,6 +62,7 @@ against either tool.
 | `top_edge` | `corners` only (**required** unless `pose_json` set): which corner/edge (0-3) is the trapezoid's short/slanted top |
 | `zstack_corners_um` | `corners` only (optional): the z-stack's own 4 corners, same shape as `xenium_trapezoid_corners_um`; blank = the z-stack's canonical FOV rectangle |
 | `pose_json` | optional alternative to the inline fields above -- for center-rotation: `{"center_um":[x,y],"rotation_deg":r,"scale":s}`; for corners: `{"xenium_trapezoid_corners_um":[[x,y]x4],"top_edge":0,"zstack_corners_um":[[x,y]x4],"scale":s}` |
+| `num_cpus` | optional: worker-process count for every parallelized stage. Blank/`0`/a value exceeding this machine's CPU count = auto (every available core); `1` = serial, no multiprocessing at all |
 
 Use `center-rotation` (a rough center/rotation eyeballed from a confocal or vasculature
 image) whenever `auto` fails to find the true pose -- see "Known limitations" below.
@@ -69,6 +70,10 @@ image) whenever `auto` fails to find the true pose -- see "Known limitations" be
 raises `NotImplementedError`); its parameters are validated and passed through end-to-end
 today (fails fast, before any expensive registration work) so no capsule changes will be
 needed once it lands.
+
+Set `num_cpus` down (e.g. `1`, for a fully serial run) in a resource-constrained compute
+environment where the default (every available core) gets a run silently killed partway
+through with no traceback -- this happened during development of this capsule.
 
 ### Inputs (attach as data assets, mounted under `/root/capsule/data`)
 The subject is resolved by glob via this capsule's own `subject_resolver.resolve_subject`

@@ -155,6 +155,12 @@ def main() -> int:
                          "and \"scale\" optional). Keys present in the file override the "
                          "matching inline flag -- same shape xenium_autocoreg.cli's own "
                          "--pose-json takes.")
+    ap.add_argument("--num_cpus", default="",
+                    help="OPTIONAL: worker-process count for every parallelized stage (the auto "
+                         "pose-grid search, per-section fine registration, cell-centroid "
+                         "extraction, 3D point mapping). Blank/0/a value exceeding this "
+                         "machine's CPU count = auto (every available core); 1 = serial, no "
+                         "multiprocessing at all. See xenium_autocoreg.resources.resolve_num_cpus.")
     args = ap.parse_args(_fix_negative_coord_tokens(sys.argv[1:]))
 
     sid = str(args.subject_id).strip()
@@ -169,6 +175,13 @@ def main() -> int:
         except ValueError:
             raise SystemExit(f"--anchor_sec must be an integer, got {args.anchor_sec!r}")
     anchor_sec_given = anchor_sec is not None
+
+    num_cpus = None
+    if args.num_cpus:
+        try:
+            num_cpus = int(args.num_cpus)
+        except ValueError:
+            raise SystemExit(f"--num_cpus must be an integer, got {args.num_cpus!r}")
 
     center_um, rotation_deg, scale = None, None, None
     xenium_trapezoid_corners_um, top_edge, zstack_corners_um = None, None, None
@@ -237,7 +250,7 @@ def main() -> int:
     print(f"[capsule] subject={sid}  pose_mode={pose_mode}  center_um={center_um}  "
           f"rotation_deg={rotation_deg}  scale={scale}  "
           f"xenium_trapezoid_corners_um={xenium_trapezoid_corners_um}  top_edge={top_edge}  "
-          f"zstack_corners_um={zstack_corners_um}", flush=True)
+          f"zstack_corners_um={zstack_corners_um}  num_cpus={num_cpus}", flush=True)
 
     print(f"[capsule] resolving subject assets under {args.input_dir}", flush=True)
     cfg = subject_resolver.resolve_subject(int(sid), data_root=Path(args.input_dir))
@@ -258,7 +271,7 @@ def main() -> int:
         cfg, out, pose_mode=pose_mode, anchor_sec=anchor_sec,
         center_um=center_um, rotation_deg=rotation_deg, scale=scale,
         xenium_trapezoid_corners_um=xenium_trapezoid_corners_um, top_edge=top_edge,
-        zstack_corners_um=zstack_corners_um, verbose=True)
+        zstack_corners_um=zstack_corners_um, num_cpus=num_cpus, verbose=True)
 
     # The package's own working tree for chain_refine (_chain_internal/) is regenerable
     # scratch, not a scientific output -- move it out of the results asset (per the
@@ -280,6 +293,7 @@ def main() -> int:
         "pose_mode": pose_mode,
         "anchor_sec": anchor_sec,
         "anchor_sec_auto_selected": not anchor_sec_given,
+        "num_cpus": num_cpus,
         "center_um": list(center_um) if center_um else None,
         "rotation_deg": rotation_deg,
         "scale": scale,

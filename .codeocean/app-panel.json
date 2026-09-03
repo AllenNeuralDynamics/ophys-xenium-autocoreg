@@ -100,6 +100,16 @@
 			"type": "text",
 			"value_type": "string",
 			"default_value": ""
+		},
+		{
+			"id": "OphysXenNumCpus11",
+			"name": "num_cpus",
+			"param_name": "num_cpus",
+			"description": "OPTIONAL: worker-process count for every parallelized stage",
+			"help_text": "Blank (default), 0, or a value exceeding this machine's CPU count = auto (every available core). 1 = serial, no multiprocessing at all -- useful for debugging, or when a resource-constrained environment silently kills a run that spawns too many worker processes. See xenium_autocoreg.resources.resolve_num_cpus.",
+			"type": "text",
+			"value_type": "integer",
+			"default_value": ""
 		}
 	]
 }
