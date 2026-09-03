@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euxo pipefail
+
+# cache bust 260903-01
+
+# Install the automated 2p<->Xenium coregistration pipeline (the `xenium_autocoreg` package).
+# Its pyproject pins the runtime deps (numpy, pandas, scipy, scikit-image, tifffile, zarr,
+# matplotlib, tqdm) -- core install only, no extras needed for a headless reproducible run.
+cd /
+git clone https://github.com/jkim0731/2p2xenium
+cd /2p2xenium && pip install -e .

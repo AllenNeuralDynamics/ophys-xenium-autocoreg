@@ -1,0 +1,8 @@
+/data/
+/results/
+/scratch/
+/code/__pycache__
+/code/.vscode
+.vscode
+__pycache__/
+*.py[cod]

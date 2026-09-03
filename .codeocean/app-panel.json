@@ -1,0 +1,75 @@
+{
+	"version": 1,
+	"named_parameters": true,
+	"parameters": [
+		{
+			"id": "OphysXenSubjectId01",
+			"name": "subject_id",
+			"param_name": "subject_id",
+			"description": "Subject id to coregister (e.g. 816462)",
+			"help_text": "The capsule resolves the subject's assets under /root/capsule/data via xenium_autocoreg.config.resolve_subject: Xenium-ophys-coregistered_{sid}_* (aligned-frame Xenium), ophys-z-stacks_{sid}_registered_*/segmented_* (or the multiplane-ophys_{sid}_*cortical-zstack-{registration,segmentation}_* fallback naming), and optionally Xenium_{sid}_*_processed (reporter population).",
+			"type": "text",
+			"value_type": "string"
+		},
+		{
+			"id": "OphysXenPoseMode02",
+			"name": "pose_mode",
+			"param_name": "pose_mode",
+			"description": "Anchor-section pose-seeding mode: auto | center-rotation | corners",
+			"help_text": "auto (default) = fully automatic blind rotation x position x depth pose search -- no human input, but can fail outright if the true pose sits outside the searched position window. center-rotation = a human provides a rough center (--center_um) and rotation (--rotation_deg); only a depth sweep then runs automatically -- use this when auto fails. corners is NOT YET IMPLEMENTED upstream (2p2xenium xenium_autocoreg.pose_seed.seed_from_corners) and will fail the run.",
+			"type": "text",
+			"value_type": "string",
+			"default_value": "auto"
+		},
+		{
+			"id": "OphysXenAnchorSec03",
+			"name": "anchor_sec",
+			"param_name": "anchor_sec",
+			"description": "OPTIONAL: Xenium section number to run the initial pose search on",
+			"help_text": "Blank (default) = auto-select via xenium_autocoreg.anchor.select_anchor_section (the first cell-rich section, in section order, past a density plateau). Set explicitly to override the auto pick.",
+			"type": "text",
+			"value_type": "integer",
+			"default_value": ""
+		},
+		{
+			"id": "OphysXenCenterUm04",
+			"name": "center_um",
+			"param_name": "center_um",
+			"description": "REQUIRED for pose_mode=center-rotation (unless pose_json is set): rough anchor-section center 'X,Y' in um",
+			"help_text": "X,Y (comma-separated) in the Xenium-aligned frame's um scale, eyeballed from a confocal/vasculature image or however already available. Ignored for pose_mode=auto.",
+			"type": "text",
+			"value_type": "string",
+			"default_value": ""
+		},
+		{
+			"id": "OphysXenRotationDeg05",
+			"name": "rotation_deg",
+			"param_name": "rotation_deg",
+			"description": "REQUIRED for pose_mode=center-rotation (unless pose_json is set): rough rotation in degrees",
+			"help_text": "Rough rotation (deg) of the z-stack relative to the Xenium section. Ignored for pose_mode=auto.",
+			"type": "text",
+			"value_type": "string",
+			"default_value": ""
+		},
+		{
+			"id": "OphysXenScale06",
+			"name": "scale",
+			"param_name": "scale",
+			"description": "OPTIONAL for pose_mode=center-rotation: z-stack-to-Xenium scale factor",
+			"help_text": "Blank (default) = the subject's own SubjectConfig.zstack_scale_to_Xenium (accounts for tissue processing shrink/expansion between modalities). Ignored for pose_mode=auto.",
+			"type": "text",
+			"value_type": "string",
+			"default_value": ""
+		},
+		{
+			"id": "OphysXenPoseJson07",
+			"name": "pose_json",
+			"param_name": "pose_json",
+			"description": "OPTIONAL: path to a JSON file with center_um/rotation_deg/scale, instead of the inline fields above",
+			"help_text": "{\"center_um\": [x, y], \"rotation_deg\": r, \"scale\": s} (\"scale\" optional). Path is resolved relative to /root/capsule/data if not absolute. Keys present in the file override the matching inline flag above.",
+			"type": "text",
+			"value_type": "string",
+			"default_value": ""
+		}
+	]
+}
