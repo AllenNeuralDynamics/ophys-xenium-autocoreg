@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 set -euxo pipefail
 
-# cache bust 260903-01
+# cache bust 260903-02  (pin to the general-config branch: config.py is now data-layout-agnostic
+# -- resolve_subject() moved to this capsule's own code/subject_resolver.py -- and cli.run_subject
+# takes a SubjectConfig directly, with all 3 pose-seeding protocols (auto/center-rotation/corners)
+# wired through. TODO: drop `-b general-config` once that branch merges to 2p2xenium's default
+# branch.)
 
 # Install the automated 2p<->Xenium coregistration pipeline (the `xenium_autocoreg` package).
 # Its pyproject pins the runtime deps (numpy, pandas, scipy, scikit-image, tifffile, zarr,
 # matplotlib, tqdm) -- core install only, no extras needed for a headless reproducible run.
 cd /
-git clone https://github.com/jkim0731/2p2xenium
+git clone -b general-config https://github.com/jkim0731/2p2xenium
 cd /2p2xenium && pip install -e .

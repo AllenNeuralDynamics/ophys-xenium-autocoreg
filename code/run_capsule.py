@@ -7,6 +7,11 @@ seeding (soma-print point-cloud descriptor), 3D tilt fitting, chain-refine propa
 across sections, fine mask-TPS registration + probability-filtered cell matching, and
 3D point mapping of every Xenium cell into z-stack coordinates.
 
+`xenium_autocoreg` itself is data-layout-agnostic (it only knows about
+`xenium_autocoreg.config.SubjectConfig`) -- `subject_resolver.py` (this capsule's own sibling
+module) is the CodeOcean/company-specific glue that resolves one subject's mounted assets into a
+`SubjectConfig`, using this lab's asset-naming convention.
+
 Pipeline stages (see the 2p2xenium README for full detail; all run via
 ``xenium_autocoreg.cli.run_subject``):
     1. anchor-section selection      2. pose seeding (auto / center-rotation / corners)
@@ -15,7 +20,7 @@ Pipeline stages (see the 2p2xenium README for full detail; all run via
     6. 3D point mapping of every Xenium cell centroid
 
 Inputs (attach as data assets, mounted under ``--input_dir`` = /root/capsule/data; resolved
-by ``xenium_autocoreg.config.resolve_subject`` -- glob, no IDs hard-coded):
+by this capsule's own ``subject_resolver.resolve_subject`` -- glob, no IDs hard-coded):
     Xenium-ophys-coregistered_{sid}_*      aligned-frame Xenium (Xenium_images/,
                                             Xenium_segmentation_masks/, section-to-section
                                             aligned -- see the 2p2xenium README)
@@ -35,23 +40,38 @@ propagation_summary.json), plus this capsule's own ``coreg_manifest.json`` (run
 parameters + per-section summary, for provenance). The package's own transient working
 files (``_chain_internal/``) are moved to ``/root/capsule/scratch`` -- regenerable, not a
 scientific output (see the 2p2xenium README, which labels it "harmless scratch").
+
+Pose-seeding protocols (``--pose_mode``) -- parameter names match ``xenium_autocoreg.cli``'s own
+CLI / ``--pose-json`` shape exactly (see the 2p2xenium README), so the same ``--pose_json`` file
+works unchanged against either tool:
+    auto             -- ``--anchor_sec`` optional (blank = auto-select).
+    center-rotation  -- ``--center_um`` + ``--rotation_deg`` required (``--scale`` optional).
+    corners          -- ``--xenium_trapezoid_corners_um`` + ``--top_edge`` required
+                        (``--zstack_corners_um`` + ``--scale`` optional). NOT YET IMPLEMENTED
+                        upstream (``xenium_autocoreg.pose_seed.seed_from_corners`` raises
+                        ``NotImplementedError``) -- parameters are validated + passed through
+                        for forward-compatibility.
 """
 import argparse
 import json
-import os
 import shutil
 import sys
 from pathlib import Path
 
+import subject_resolver
 
-def _parse_center_um(s: str) -> tuple:
+
+def _parse_points(s: str, n: int, flag: str) -> list:
+    """Parse a flat comma-separated string of `2*n` floats into a list of `n` (x, y) tuples."""
     parts = [p.strip() for p in s.split(",")]
-    if len(parts) != 2:
-        raise SystemExit(f"--center_um must be 'X,Y' (comma-separated), got {s!r}")
+    if len(parts) != 2 * n:
+        raise SystemExit(f"{flag} must be {2 * n} comma-separated numbers ({n} x,y pairs), "
+                         f"got {len(parts)}: {s!r}")
     try:
-        return (float(parts[0]), float(parts[1]))
+        vals = [float(v) for v in parts]
     except ValueError:
-        raise SystemExit(f"--center_um must be two numbers 'X,Y', got {s!r}")
+        raise SystemExit(f"{flag} must be {2 * n} comma-separated numbers, got {s!r}")
+    return [(vals[i], vals[i + 1]) for i in range(0, 2 * n, 2)]
 
 
 def main() -> int:
@@ -69,8 +89,11 @@ def main() -> int:
                          "automatic blind search). 'center-rotation' takes a human-provided "
                          "rough center/rotation (see --center_um/--rotation_deg/--pose_json) "
                          "and only auto-runs a depth sweep from there -- use this when 'auto' "
-                         "fails to find the true pose. 'corners' is NOT YET IMPLEMENTED "
-                         "upstream (2p2xenium xenium_autocoreg.pose_seed.seed_from_corners).")
+                         "fails to find the true pose. 'corners' takes 4 Xenium tissue-trapezoid "
+                         "corners (see --xenium_trapezoid_corners_um/--top_edge/--pose_json) but "
+                         "is NOT YET IMPLEMENTED upstream (2p2xenium "
+                         "xenium_autocoreg.pose_seed.seed_from_corners) -- the run will fail "
+                         "with NotImplementedError.")
     ap.add_argument("--anchor_sec", default="",
                     help="Xenium section number to run the (expensive) initial pose search "
                          "on. Blank (default) = auto-select via "
@@ -85,27 +108,36 @@ def main() -> int:
                          "given): rough rotation (deg) of the z-stack relative to the Xenium "
                          "section.")
     ap.add_argument("--scale", default="",
-                    help="OPTIONAL for --pose_mode center-rotation: z-stack-to-Xenium scale "
-                         "factor. Blank (default) = the subject's own "
+                    help="OPTIONAL for --pose_mode center-rotation or corners: z-stack-to-"
+                         "Xenium scale factor. Blank (default) = the subject's own "
                          "SubjectConfig.zstack_scale_to_Xenium.")
+    ap.add_argument("--xenium_trapezoid_corners_um", default="",
+                    help="REQUIRED for --pose_mode corners (unless --pose_json is given): 4 "
+                         "Xenium tissue-trapezoid corners in the Xenium-aligned frame (um), as "
+                         "'X1,Y1,X2,Y2,X3,Y3,X4,Y4' (8 comma-separated numbers).")
+    ap.add_argument("--top_edge", default="",
+                    help="REQUIRED for --pose_mode corners (unless --pose_json is given): "
+                         "which corner/edge (0-3) of --xenium_trapezoid_corners_um is the "
+                         "trapezoid's short/slanted top.")
+    ap.add_argument("--zstack_corners_um", default="",
+                    help="OPTIONAL for --pose_mode corners: the z-stack's own 4 corners, same "
+                         "'X1,Y1,...,X4,Y4' shape as --xenium_trapezoid_corners_um. Blank "
+                         "(default) = the z-stack's own canonical FOV rectangle.")
     ap.add_argument("--pose_json", default="",
-                    help="OPTIONAL alternative to --center_um/--rotation_deg/--scale: path "
-                         "to a JSON file {\"center_um\": [x,y], \"rotation_deg\": r, "
-                         "\"scale\": s} (\"scale\" optional). Keys present in the file "
-                         "override the matching inline flag.")
+                    help="OPTIONAL alternative to the inline pose-mode flags above: path to a "
+                         "JSON file. For center-rotation: {\"center_um\": [x,y], "
+                         "\"rotation_deg\": r, \"scale\": s} (\"scale\" optional). For corners: "
+                         "{\"xenium_trapezoid_corners_um\": [[x,y]x4], \"top_edge\": 0, "
+                         "\"zstack_corners_um\": [[x,y]x4], \"scale\": s} (\"zstack_corners_um\" "
+                         "and \"scale\" optional). Keys present in the file override the "
+                         "matching inline flag -- same shape xenium_autocoreg.cli's own "
+                         "--pose-json takes.")
     args = ap.parse_args()
 
     sid = str(args.subject_id).strip()
     if not sid:
         raise SystemExit("subject_id is required (e.g. --subject_id 816462)")
     pose_mode = args.pose_mode
-
-    if pose_mode == "corners":
-        raise SystemExit(
-            "--pose_mode corners is not yet implemented upstream -- see "
-            "xenium_autocoreg.pose_seed.seed_from_corners in 2p2xenium for exactly why, "
-            "and what real click data is needed before it can be. Use 'auto' or "
-            "'center-rotation' instead.")
 
     anchor_sec = None
     if args.anchor_sec:
@@ -116,8 +148,9 @@ def main() -> int:
     anchor_sec_given = anchor_sec is not None
 
     center_um, rotation_deg, scale = None, None, None
+    xenium_trapezoid_corners_um, top_edge, zstack_corners_um = None, None, None
     if args.center_um:
-        center_um = _parse_center_um(args.center_um)
+        center_um = _parse_points(args.center_um, 1, "--center_um")[0]
     if args.rotation_deg:
         try:
             rotation_deg = float(args.rotation_deg)
@@ -128,6 +161,16 @@ def main() -> int:
             scale = float(args.scale)
         except ValueError:
             raise SystemExit(f"--scale must be a number, got {args.scale!r}")
+    if args.xenium_trapezoid_corners_um:
+        xenium_trapezoid_corners_um = _parse_points(
+            args.xenium_trapezoid_corners_um, 4, "--xenium_trapezoid_corners_um")
+    if args.top_edge:
+        try:
+            top_edge = int(args.top_edge)
+        except ValueError:
+            raise SystemExit(f"--top_edge must be an integer, got {args.top_edge!r}")
+    if args.zstack_corners_um:
+        zstack_corners_um = _parse_points(args.zstack_corners_um, 4, "--zstack_corners_um")
     if args.pose_json:
         pose_json_path = Path(args.pose_json)
         if not pose_json_path.is_absolute():
@@ -141,28 +184,40 @@ def main() -> int:
             rotation_deg = data["rotation_deg"]
         if "scale" in data:
             scale = data["scale"]
+        if "xenium_trapezoid_corners_um" in data:
+            xenium_trapezoid_corners_um = [tuple(pt) for pt in data["xenium_trapezoid_corners_um"]]
+        if "top_edge" in data:
+            top_edge = data["top_edge"]
+        if "zstack_corners_um" in data:
+            zstack_corners_um = [tuple(pt) for pt in data["zstack_corners_um"]]
 
     if pose_mode == "center-rotation" and (center_um is None or rotation_deg is None):
         raise SystemExit(
             "--pose_mode center-rotation requires --center_um AND --rotation_deg (or a "
             "--pose_json with both keys). Got "
             f"center_um={center_um!r} rotation_deg={rotation_deg!r}.")
+    if pose_mode == "corners" and (xenium_trapezoid_corners_um is None or top_edge is None):
+        raise SystemExit(
+            "--pose_mode corners requires --xenium_trapezoid_corners_um AND --top_edge (or a "
+            "--pose_json with both keys). Got "
+            f"xenium_trapezoid_corners_um={xenium_trapezoid_corners_um!r} top_edge={top_edge!r}. "
+            "Note: pose_mode=corners is NOT YET IMPLEMENTED upstream (2p2xenium "
+            "xenium_autocoreg.pose_seed.seed_from_corners) -- these parameters are validated "
+            "and passed through for forward-compatibility, but the run will still fail with "
+            "NotImplementedError until it is.")
 
     out = Path(args.output_dir); out.mkdir(parents=True, exist_ok=True)
 
-    # Configure the package via env BEFORE importing it (config.py reads
-    # XENIUM_AUTOCOREG_DATA_ROOT at import time to build its DATA_ROOT constant).
-    os.environ["XENIUM_AUTOCOREG_DATA_ROOT"] = str(args.input_dir)
-
-    from xenium_autocoreg.config import resolve_subject
     from xenium_autocoreg.anchor import select_anchor_section
     from xenium_autocoreg.cli import run_subject
 
-    print(f"[capsule] subject={sid}  pose_mode={pose_mode}  "
-          f"center_um={center_um}  rotation_deg={rotation_deg}  scale={scale}", flush=True)
+    print(f"[capsule] subject={sid}  pose_mode={pose_mode}  center_um={center_um}  "
+          f"rotation_deg={rotation_deg}  scale={scale}  "
+          f"xenium_trapezoid_corners_um={xenium_trapezoid_corners_um}  top_edge={top_edge}  "
+          f"zstack_corners_um={zstack_corners_um}", flush=True)
 
     print(f"[capsule] resolving subject assets under {args.input_dir}", flush=True)
-    cfg = resolve_subject(int(sid))
+    cfg = subject_resolver.resolve_subject(int(sid), data_root=Path(args.input_dir))
     print(f"[capsule]   aligned_dir            = {cfg.aligned_dir}", flush=True)
     print(f"[capsule]   zstack_registered_tif  = {cfg.zstack_registered_tif}", flush=True)
     print(f"[capsule]   zstack_segmented_tif   = {cfg.zstack_segmented_tif}", flush=True)
@@ -177,8 +232,10 @@ def main() -> int:
 
     print(f"[capsule] running xenium_autocoreg.cli.run_subject -> {out}", flush=True)
     summary = run_subject(
-        int(sid), out, pose_mode=pose_mode, anchor_sec=anchor_sec,
-        center_um=center_um, rotation_deg=rotation_deg, scale=scale, verbose=True)
+        cfg, out, pose_mode=pose_mode, anchor_sec=anchor_sec,
+        center_um=center_um, rotation_deg=rotation_deg, scale=scale,
+        xenium_trapezoid_corners_um=xenium_trapezoid_corners_um, top_edge=top_edge,
+        zstack_corners_um=zstack_corners_um, verbose=True)
 
     # The package's own working tree for chain_refine (_chain_internal/) is regenerable
     # scratch, not a scientific output -- move it out of the results asset (per the
@@ -203,6 +260,11 @@ def main() -> int:
         "center_um": list(center_um) if center_um else None,
         "rotation_deg": rotation_deg,
         "scale": scale,
+        "xenium_trapezoid_corners_um": ([list(pt) for pt in xenium_trapezoid_corners_um]
+                                        if xenium_trapezoid_corners_um else None),
+        "top_edge": top_edge,
+        "zstack_corners_um": ([list(pt) for pt in zstack_corners_um]
+                              if zstack_corners_um else None),
         "aligned_dir": str(cfg.aligned_dir),
         "zstack_registered_tif": str(cfg.zstack_registered_tif),
         "zstack_segmented_tif": str(cfg.zstack_segmented_tif),
