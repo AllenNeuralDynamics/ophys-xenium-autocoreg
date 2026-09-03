@@ -61,6 +61,29 @@ from pathlib import Path
 import subject_resolver
 
 
+_COORD_FLAGS = ("--center_um", "--xenium_trapezoid_corners_um", "--zstack_corners_um")
+
+
+def _fix_negative_coord_tokens(argv):
+    """Rewrite `--flag value` to `--flag=value` for the comma-joined coordinate flags, so a value
+    starting with a minus sign (e.g. '-50,-100') isn't misparsed by argparse as a new option --
+    argparse's own negative-number heuristic only recognizes a bare `-123`/`-1.5`, not a
+    comma-separated list, so `--center_um -50,-100` (exactly how CodeOcean's app panel invokes a
+    capsule: `--<key> <value>` as separate argv tokens) would otherwise fail with 'expected one
+    argument' before this script's own validation ever runs."""
+    out = []
+    i = 0
+    while i < len(argv):
+        tok = argv[i]
+        if tok in _COORD_FLAGS and i + 1 < len(argv):
+            out.append(f"{tok}={argv[i + 1]}")
+            i += 2
+        else:
+            out.append(tok)
+            i += 1
+    return out
+
+
 def _parse_points(s: str, n: int, flag: str) -> list:
     """Parse a flat comma-separated string of `2*n` floats into a list of `n` (x, y) tuples."""
     parts = [p.strip() for p in s.split(",")]
@@ -132,7 +155,7 @@ def main() -> int:
                          "and \"scale\" optional). Keys present in the file override the "
                          "matching inline flag -- same shape xenium_autocoreg.cli's own "
                          "--pose-json takes.")
-    args = ap.parse_args()
+    args = ap.parse_args(_fix_negative_coord_tokens(sys.argv[1:]))
 
     sid = str(args.subject_id).strip()
     if not sid:

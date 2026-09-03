@@ -55,7 +55,7 @@
 			"id": "OphysXenScale06",
 			"name": "scale",
 			"param_name": "scale",
-			"description": "OPTIONAL for pose_mode=center-rotation: z-stack-to-Xenium scale factor",
+			"description": "OPTIONAL for pose_mode=center-rotation or corners: z-stack-to-Xenium scale factor",
 			"help_text": "Blank (default) = the subject's own SubjectConfig.zstack_scale_to_Xenium (accounts for tissue processing shrink/expansion between modalities). Ignored for pose_mode=auto.",
 			"type": "text",
 			"value_type": "string",
