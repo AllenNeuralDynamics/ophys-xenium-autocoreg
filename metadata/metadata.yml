@@ -1,12 +1,7 @@
 metadata_version: 1
 name: ophys-Xenium automated coregistration
-description: 'Automated coregistration of an in-vivo 2-photon (ophys) cortical z-stack
-  to its Xenium spatial-transcriptomics sections for one subject. GT-free reproducible
-  run: anchor-section selection, automatic pose seeding via the soma-print point-cloud
-  descriptor, 3D tilt fitting, chain-refine propagation across sections, fine mask-TPS
-  registration, and probability-filtered cell-cell matching, then 3D point mapping of
-  every Xenium cell into z-stack coordinates. Outputs the affine/tilt transforms, warped
-  images, matched-cell tables, and QC figures for each section.'
+description: "Automated coregistration of an in-vivo 2-photon (ophys) cortical z-stack
+  to its Xenium spatial-transcriptomics sections for one subject. \nUsing https://github.com/jkim0731/2p2xenium"
 tags:
 - ophys-Xenium-autocoreg
 - coregistration
@@ -14,3 +9,4 @@ tags:
 - autocoreg
 authors:
 - name: Jinho Kim
+- name: Omid Zobeiri
