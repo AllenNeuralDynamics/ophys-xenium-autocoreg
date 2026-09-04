@@ -66,15 +66,17 @@ nesting) that the resolver's fixed globs don't see, or you want a specific chann
 the max-ROI-count rule wouldn't pick. Both must be given together (a mismatched auto+pinned pair
 would silently combine two different physical acquisitions). Paths are resolved relative to
 ``--input_dir`` if not absolute. ``aligned_dir``/``reporter_zarr_root`` are still resolved
-automatically; ``zstack_xy_um`` still comes from ``subject_resolver``'s own resolution unless
-``--zstack_xy_um`` is also given explicitly (only needed if the pinned pair's calibration differs
-from what the resolver would have auto-selected for this subject).
+automatically as usual; the automatic z-stack discovery itself (``_find_zstack_pair``/
+``_find_zstack_pair_multiplane``) is skipped ENTIRELY when both are given -- no
+``ophys-z-stacks_*``/``multiplane-ophys_*`` asset needs to be auto-discoverable, or even attached,
+for this run. ``zstack_xy_um`` is auto-derived from a ``roi_groups_metadata.json`` found near the
+pinned registered tif itself (not from any auto-discovered stack); pass ``--zstack_xy_um``
+explicitly only if that lookup can't find one or you want to override it.
 """
 import argparse
 import json
 import shutil
 import sys
-from dataclasses import replace
 from pathlib import Path
 
 import subject_resolver
@@ -260,13 +262,12 @@ def main() -> int:
           f"rotation_deg={rotation_deg}  zstack_scale_to_xenium={zstack_scale_to_xenium}  "
           f"num_cpus={num_cpus}", flush=True)
 
-    print(f"[capsule] resolving subject assets under {args.input_dir}", flush=True)
-    cfg = subject_resolver.resolve_subject(int(sid), data_root=Path(args.input_dir))
+    def _resolve_pinned(p):
+        p = Path(p)
+        return p if p.is_absolute() else Path(args.input_dir) / p
 
+    zstack_pin_kwargs = {}
     if args.zstack_registered_tif and args.zstack_segmented_tif:
-        def _resolve_pinned(p):
-            p = Path(p)
-            return p if p.is_absolute() else Path(args.input_dir) / p
         reg_tif = _resolve_pinned(args.zstack_registered_tif)
         seg_tif = _resolve_pinned(args.zstack_segmented_tif)
         if not reg_tif.exists():
@@ -275,12 +276,15 @@ def main() -> int:
         if not seg_tif.exists():
             raise SystemExit(f"--zstack_segmented_tif not found: {args.zstack_segmented_tif!r} "
                              f"(resolved to {seg_tif})")
-        replace_kwargs = {"zstack_registered_tif": reg_tif, "zstack_segmented_tif": seg_tif}
-        if zstack_xy_um_override is not None:
-            replace_kwargs["zstack_xy_um"] = zstack_xy_um_override
-        cfg = replace(cfg, **replace_kwargs)
-        print(f"[capsule] PINNED z-stack override applied (bypassing automatic discovery) -- "
-              f"see the resolved values below:", flush=True)
+        zstack_pin_kwargs = dict(zstack_registered_tif=reg_tif, zstack_segmented_tif=seg_tif,
+                                 zstack_xy_um=zstack_xy_um_override)
+        print(f"[capsule] PINNED z-stack override -- bypassing automatic "
+              f"ophys-z-stacks_*/multiplane-ophys_* discovery ENTIRELY for this run:", flush=True)
+        print(f"[capsule]   zstack_registered_tif (pinned) = {reg_tif}", flush=True)
+        print(f"[capsule]   zstack_segmented_tif  (pinned) = {seg_tif}", flush=True)
+
+    print(f"[capsule] resolving subject assets under {args.input_dir}", flush=True)
+    cfg = subject_resolver.resolve_subject(int(sid), data_root=Path(args.input_dir), **zstack_pin_kwargs)
 
     print(f"[capsule]   aligned_dir            = {cfg.aligned_dir}", flush=True)
     print(f"[capsule]   zstack_registered_tif  = {cfg.zstack_registered_tif}", flush=True)

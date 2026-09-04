@@ -85,8 +85,8 @@
 			"id": "OphysXenZstackRegTif12",
 			"name": "zstack_registered_tif",
 			"param_name": "zstack_registered_tif",
-			"description": "OPTIONAL: pin the exact z-stack registered-intensity .tif, bypassing automatic asset discovery",
-			"help_text": "Use when the registration/segmentation pair you want isn't (or can't be) auto-discovered by subject_resolver -- e.g. a differently-structured derived asset, or a specific sub-acquisition the max-ROI-count rule wouldn't pick. Must be given together with zstack_segmented_tif (same physical acquisition, same shape). Path is resolved relative to /root/capsule/data if not absolute.",
+			"description": "OPTIONAL: pin the exact z-stack registered-intensity .tif, skipping automatic asset discovery entirely",
+			"help_text": "Use when the registration/segmentation pair you want isn't (or can't be) auto-discovered by subject_resolver -- e.g. a differently-structured derived asset, or a specific sub-acquisition the max-ROI-count rule wouldn't pick. Setting this together with zstack_segmented_tif completely skips the ophys-z-stacks_*/multiplane-ophys_* discovery for this run -- no such asset needs to be auto-discoverable, or even attached, at all. Must be given together with zstack_segmented_tif (same physical acquisition, same shape). Path is resolved relative to /root/capsule/data if not absolute.",
 			"type": "text",
 			"value_type": "string",
 			"default_value": ""
@@ -106,7 +106,7 @@
 			"name": "zstack_xy_um",
 			"param_name": "zstack_xy_um",
 			"description": "OPTIONAL: override the z-stack lateral pixel size (um/px) for a pinned z-stack pair",
-			"help_text": "Only relevant alongside zstack_registered_tif/zstack_segmented_tif. Blank (default) = keep subject_resolver's own auto-resolved value -- correct as long as the pinned pair shares the same acquisition/FOV calibration the resolver would have auto-selected; verify independently if unsure.",
+			"help_text": "Only relevant alongside zstack_registered_tif/zstack_segmented_tif. Blank (default) = auto-derive from a roi_groups_metadata.json found near the pinned zstack_registered_tif itself (not from any auto-discovered stack). Pass this only if that lookup fails, or to override it.",
 			"type": "text",
 			"value_type": "string",
 			"default_value": ""

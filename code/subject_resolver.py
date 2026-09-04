@@ -127,30 +127,81 @@ def _find_zstack_pair(data_root: Path, subject_id: int, fov_tag="700x700"):
     return Path(reg_tif), Path(seg_tif), zstack_xy_um
 
 
+def _zstack_xy_um_near(reg_tif: Path) -> Optional[float]:
+    """Look for a `roi_groups_metadata.json` near an arbitrary (possibly pinned) registered-tif
+    path -- checks its own directory and one level up, the same two shapes `_find_zstack_pair`
+    checks for an auto-discovered stack, but relative to the file itself rather than a known
+    `{stack}` folder name. Returns None (not an error) if none is found -- the caller decides
+    whether/how to fall back."""
+    for candidate_dir in (reg_tif.parent, reg_tif.parent.parent):
+        meta = _latest_glob(str(candidate_dir / "roi_groups_metadata.json"))
+        if meta:
+            return zstack_xy_um_from_roi_metadata(meta)
+    return None
+
+
 def resolve_subject(subject_id: int, data_root: Path, fov_tag: str = "700x700",
                     fallback_fov_um: Optional[float] = 700.0,
-                    fallback_native_px: Optional[int] = 512) -> SubjectConfig:
+                    fallback_native_px: Optional[int] = 512,
+                    zstack_registered_tif: Optional[Path] = None,
+                    zstack_segmented_tif: Optional[Path] = None,
+                    zstack_xy_um: Optional[float] = None) -> SubjectConfig:
     """Resolve one subject's `SubjectConfig` from this lab's CodeOcean mounted-asset naming
     convention under `data_root` (typically /root/capsule/data).
 
     `fallback_fov_um`/`fallback_native_px`: used ONLY when no `roi_groups_metadata.json` can be
     found for this acquisition (some older assets don't have one mounted) -- an explicit, visible,
     overridable nominal value rather than a silent assumption. Pass `fallback_fov_um=None` to
-    require real metadata and raise instead."""
+    require real metadata and raise instead.
+
+    `zstack_registered_tif`/`zstack_segmented_tif`: OPTIONAL explicit pin. When BOTH are given,
+    this COMPLETELY BYPASSES the automatic `ophys-z-stacks_*`/`multiplane-ophys_*` discovery
+    (`_find_zstack_pair`/`_find_zstack_pair_multiplane`) for this subject -- no z-stack asset needs
+    to be auto-discoverable (or even attached) at all; only the pinned files are read. Use this
+    for a registration/segmentation pair the automatic discovery can't reach (e.g. a
+    differently-structured derived asset). `zstack_xy_um`: optional explicit calibration override
+    for the pinned pair; when omitted, it's auto-derived from a `roi_groups_metadata.json` found
+    near the pinned registered tif (see `_zstack_xy_um_near`), falling back to
+    `fallback_fov_um`/`fallback_native_px` if none is found there either."""
     data_root = Path(data_root)
     aligned = _latest_glob(str(data_root / f"Xenium-ophys-coregistered_{subject_id}_*"))
     if aligned is None:
         raise FileNotFoundError(f"no Xenium-ophys-coregistered_{subject_id}_* aligned-frame directory "
                                 f"under {data_root}")
-    zstack_reg, zstack_seg, zstack_xy_um = _find_zstack_pair(data_root, subject_id, fov_tag)
-    if zstack_xy_um is None:
-        if fallback_fov_um is None:
-            raise FileNotFoundError(f"no roi_groups_metadata.json found for subject {subject_id}'s "
-                                    f"z-stack, and no fallback_fov_um given -- cannot determine um/px")
-        print(f"[{subject_id}] WARNING: no roi_groups_metadata.json found -- assuming a nominal "
-              f"{fallback_fov_um}um FOV over {fallback_native_px}px (pass fallback_fov_um= to "
-              f"resolve_subject to change this).", flush=True)
-        zstack_xy_um = fallback_fov_um / fallback_native_px
+
+    if zstack_registered_tif is not None and zstack_segmented_tif is not None:
+        zstack_reg = Path(zstack_registered_tif)
+        zstack_seg = Path(zstack_segmented_tif)
+        if not zstack_reg.exists():
+            raise FileNotFoundError(f"pinned zstack_registered_tif not found: {zstack_reg}")
+        if not zstack_seg.exists():
+            raise FileNotFoundError(f"pinned zstack_segmented_tif not found: {zstack_seg}")
+        if zstack_xy_um is None:
+            zstack_xy_um = _zstack_xy_um_near(zstack_reg)
+            if zstack_xy_um is None:
+                if fallback_fov_um is None:
+                    raise FileNotFoundError(
+                        f"no roi_groups_metadata.json found near pinned zstack_registered_tif="
+                        f"{zstack_reg}, and no fallback_fov_um given -- pass zstack_xy_um "
+                        f"explicitly")
+                print(f"[{subject_id}] WARNING: no roi_groups_metadata.json found near pinned "
+                      f"zstack_registered_tif -- assuming a nominal {fallback_fov_um}um FOV over "
+                      f"{fallback_native_px}px (pass zstack_xy_um= to resolve_subject to override).",
+                      flush=True)
+                zstack_xy_um = fallback_fov_um / fallback_native_px
+    else:
+        zstack_reg, zstack_seg, zstack_xy_um_found = _find_zstack_pair(data_root, subject_id, fov_tag)
+        if zstack_xy_um is None:
+            zstack_xy_um = zstack_xy_um_found
+        if zstack_xy_um is None:
+            if fallback_fov_um is None:
+                raise FileNotFoundError(f"no roi_groups_metadata.json found for subject {subject_id}'s "
+                                        f"z-stack, and no fallback_fov_um given -- cannot determine um/px")
+            print(f"[{subject_id}] WARNING: no roi_groups_metadata.json found -- assuming a nominal "
+                  f"{fallback_fov_um}um FOV over {fallback_native_px}px (pass fallback_fov_um= to "
+                  f"resolve_subject to change this).", flush=True)
+            zstack_xy_um = fallback_fov_um / fallback_native_px
+
     reporter_root = _latest_glob(str(data_root / f"Xenium_{subject_id}_*_processed"))
 
     return SubjectConfig(
