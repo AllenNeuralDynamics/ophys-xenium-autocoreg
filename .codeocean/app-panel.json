@@ -100,16 +100,6 @@
 			"type": "text",
 			"value_type": "string",
 			"default_value": ""
-		},
-		{
-			"id": "OphysXenZstackXyUm14",
-			"name": "zstack_xy_um",
-			"param_name": "zstack_xy_um",
-			"description": "OPTIONAL: override the z-stack lateral pixel size (um/px) for a pinned z-stack pair",
-			"help_text": "Only relevant alongside zstack_registered_tif/zstack_segmented_tif. Blank (default) = auto-derive from a roi_groups_metadata.json found near the pinned zstack_registered_tif itself (not from any auto-discovered stack). Pass this only if that lookup fails, or to override it.",
-			"type": "text",
-			"value_type": "string",
-			"default_value": ""
 		}
 	]
 }

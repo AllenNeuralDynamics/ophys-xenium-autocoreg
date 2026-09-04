@@ -61,7 +61,6 @@ Parameter names below match `xenium_autocoreg.cli`'s own CLI/`--pose-json` shape
 | `num_cpus` | optional: worker-process count for every parallelized stage. Blank/`0`/a value exceeding this machine's CPU count = auto (every available core); `1` = serial, no multiprocessing at all |
 | `zstack_registered_tif` | optional: pin the exact z-stack registered-intensity `.tif`, bypassing `subject_resolver`'s automatic asset discovery. Must be set together with `zstack_segmented_tif` |
 | `zstack_segmented_tif` | optional: pin the exact z-stack segmentation-label `.tif`, bypassing automatic discovery. Must be set together with `zstack_registered_tif` |
-| `zstack_xy_um` | optional: override the z-stack lateral pixel size (um/px) for a pinned pair; blank = auto-derive from a `roi_groups_metadata.json` found near the pinned `zstack_registered_tif` itself |
 
 Use `center-rotation` (a rough center/rotation eyeballed from a confocal or vasculature
 image) whenever `auto` fails to find the true pose -- see "Known limitations" below.

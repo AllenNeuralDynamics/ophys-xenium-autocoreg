@@ -69,9 +69,9 @@ would silently combine two different physical acquisitions). Paths are resolved 
 automatically as usual; the automatic z-stack discovery itself (``_find_zstack_pair``/
 ``_find_zstack_pair_multiplane``) is skipped ENTIRELY when both are given -- no
 ``ophys-z-stacks_*``/``multiplane-ophys_*`` asset needs to be auto-discoverable, or even attached,
-for this run. ``zstack_xy_um`` is auto-derived from a ``roi_groups_metadata.json`` found near the
-pinned registered tif itself (not from any auto-discovered stack); pass ``--zstack_xy_um``
-explicitly only if that lookup can't find one or you want to override it.
+for this run. Calibration (``zstack_xy_um``) is auto-derived from a ``roi_groups_metadata.json``
+found near the pinned registered tif itself (not from any auto-discovered stack), falling back to
+a nominal 700um/512px guess (with a printed warning) if none is found there either.
 """
 import argparse
 import json
@@ -178,12 +178,6 @@ def main() -> int:
                          "bypassing subject_resolver's automatic discovery. Must be given "
                          "together with --zstack_registered_tif. Resolved relative to "
                          "--input_dir if not absolute.")
-    ap.add_argument("--zstack_xy_um", default="",
-                    help="OPTIONAL: override the z-stack lateral pixel size (um/px) for a pinned "
-                         "--zstack_registered_tif/--zstack_segmented_tif pair. Blank (default) = "
-                         "keep subject_resolver's own auto-resolved value (correct as long as the "
-                         "pinned pair shares the same acquisition/FOV calibration the resolver "
-                         "would have picked automatically -- verify this independently if unsure).")
     args = ap.parse_args(_fix_negative_coord_tokens(sys.argv[1:]))
 
     sid = str(args.subject_id).strip()
@@ -246,12 +240,6 @@ def main() -> int:
             f"(a mismatched auto+pinned pair would silently combine two different physical "
             f"acquisitions). Got zstack_registered_tif={args.zstack_registered_tif!r} "
             f"zstack_segmented_tif={args.zstack_segmented_tif!r}.")
-    zstack_xy_um_override = None
-    if args.zstack_xy_um:
-        try:
-            zstack_xy_um_override = float(args.zstack_xy_um)
-        except ValueError:
-            raise SystemExit(f"--zstack_xy_um must be a number, got {args.zstack_xy_um!r}")
 
     out = Path(args.output_dir); out.mkdir(parents=True, exist_ok=True)
 
@@ -276,8 +264,7 @@ def main() -> int:
         if not seg_tif.exists():
             raise SystemExit(f"--zstack_segmented_tif not found: {args.zstack_segmented_tif!r} "
                              f"(resolved to {seg_tif})")
-        zstack_pin_kwargs = dict(zstack_registered_tif=reg_tif, zstack_segmented_tif=seg_tif,
-                                 zstack_xy_um=zstack_xy_um_override)
+        zstack_pin_kwargs = dict(zstack_registered_tif=reg_tif, zstack_segmented_tif=seg_tif)
         print(f"[capsule] PINNED z-stack override -- bypassing automatic "
               f"ophys-z-stacks_*/multiplane-ophys_* discovery ENTIRELY for this run:", flush=True)
         print(f"[capsule]   zstack_registered_tif (pinned) = {reg_tif}", flush=True)
