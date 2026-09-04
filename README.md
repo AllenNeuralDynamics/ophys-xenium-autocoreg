@@ -56,12 +56,16 @@ Parameter names below match `xenium_autocoreg.cli`'s own CLI/`--pose-json` shape
 | `anchor_sec` | Xenium section to run the initial pose search on; blank (default) = auto-select |
 | `center_um` | `center-rotation` only (**required** unless `pose_json` set): rough anchor center `X,Y` (um) |
 | `rotation_deg` | `center-rotation` only (**required** unless `pose_json` set): rough rotation (deg) |
-| `scale` | `center-rotation` only (optional): z-stack-to-Xenium scale factor; blank = subject default |
-| `pose_json` | optional alternative to the inline fields above: `{"center_um":[x,y],"rotation_deg":r,"scale":s}` |
+| `zstack_scale_to_xenium` | optional: override the z-stack-to-Xenium linear PHYSICAL scale factor used to seed the pose search. Applies to **every** `pose_mode` alike (not just center-rotation); blank = subject's own configured value |
+| `pose_json` | optional alternative to the inline fields above: `{"center_um":[x,y],"rotation_deg":r,"zstack_scale_to_xenium":s}` |
 | `num_cpus` | optional: worker-process count for every parallelized stage. Blank/`0`/a value exceeding this machine's CPU count = auto (every available core); `1` = serial, no multiprocessing at all |
 
 Use `center-rotation` (a rough center/rotation eyeballed from a confocal or vasculature
 image) whenever `auto` fails to find the true pose -- see "Known limitations" below.
+`zstack_scale_to_xenium` is an INPUT prior (the subject's `SubjectConfig.zstack_scale_to_Xenium`),
+not the same thing as the per-candidate FITTED affine scale reported in 2p2xenium's own logs/QC
+(e.g. a grid-search candidate line's `scale=0.809`) -- that's a measured output of the
+registration, not a knob.
 (A third, corner-based mode is a documented TODO in `xenium_autocoreg.pose_seed.seed_from_corners`
 -- not yet implemented upstream, and not exposed here.)
 

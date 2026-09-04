@@ -53,10 +53,10 @@
 		},
 		{
 			"id": "OphysXenScale06",
-			"name": "scale",
-			"param_name": "scale",
-			"description": "OPTIONAL for pose_mode=center-rotation: z-stack-to-Xenium scale factor",
-			"help_text": "Blank (default) = the subject's own SubjectConfig.zstack_scale_to_Xenium (accounts for tissue processing shrink/expansion between modalities). Ignored for pose_mode=auto.",
+			"name": "zstack_scale_to_xenium",
+			"param_name": "zstack_scale_to_xenium",
+			"description": "OPTIONAL: override the z-stack-to-Xenium physical scale factor used to seed the pose search",
+			"help_text": "Overrides the subject's own SubjectConfig.zstack_scale_to_Xenium (accounts for tissue processing shrink/expansion between modalities) for this run. Applies to EVERY pose_mode alike (auto and center-rotation both seed from this value), not just center-rotation. NOT the same as the fitted affine scale reported in 2p2xenium's own logs/QC (a measured output of the registration, not an input). Blank (default) = use the subject's own configured value.",
 			"type": "text",
 			"value_type": "string",
 			"default_value": ""
@@ -65,8 +65,8 @@
 			"id": "OphysXenPoseJson07",
 			"name": "pose_json",
 			"param_name": "pose_json",
-			"description": "OPTIONAL: path to a JSON file with center_um/rotation_deg/scale, instead of the inline fields above",
-			"help_text": "{\"center_um\": [x, y], \"rotation_deg\": r, \"scale\": s} (\"scale\" optional). Path is resolved relative to /root/capsule/data if not absolute. Keys present in the file override the matching inline flag above -- same shape xenium_autocoreg.cli's own --pose-json takes.",
+			"description": "OPTIONAL: path to a JSON file with center_um/rotation_deg/zstack_scale_to_xenium, instead of the inline fields above",
+			"help_text": "{\"center_um\": [x, y], \"rotation_deg\": r, \"zstack_scale_to_xenium\": s} (\"zstack_scale_to_xenium\" optional). Path is resolved relative to /root/capsule/data if not absolute. Keys present in the file override the matching inline flag above -- same shape xenium_autocoreg.cli's own --pose-json takes.",
 			"type": "text",
 			"value_type": "string",
 			"default_value": ""

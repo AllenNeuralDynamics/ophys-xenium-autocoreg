@@ -45,7 +45,15 @@ Pose-seeding protocols (``--pose_mode``) -- parameter names match ``xenium_autoc
 CLI / ``--pose-json`` shape exactly (see the 2p2xenium README), so the same ``--pose_json`` file
 works unchanged against either tool:
     auto             -- ``--anchor_sec`` optional (blank = auto-select).
-    center-rotation  -- ``--center_um`` + ``--rotation_deg`` required (``--scale`` optional).
+    center-rotation  -- ``--center_um`` + ``--rotation_deg`` required.
+
+``--zstack_scale_to_xenium`` OPTIONALLY overrides the subject's own
+``SubjectConfig.zstack_scale_to_Xenium`` (the z-stack-to-Xenium linear PHYSICAL scale factor used
+to seed the initial pose search) for this run -- applies to EVERY ``--pose_mode`` alike (auto and
+center-rotation both ultimately seed from ``cfg.zstack_scale_to_Xenium``), not just
+center-rotation. This is an INPUT prior, not the same thing as the per-candidate FITTED affine
+scale reported in 2p2xenium's own logs/QC (e.g. a grid-search candidate line's ``scale=0.809``) --
+that's a measured OUTPUT of the registration, not a knob.
 
 (A third, corner-based mode is a documented TODO in ``xenium_autocoreg.pose_seed.seed_from_corners``
 -- not yet implemented upstream, and not exposed here.)
@@ -124,14 +132,19 @@ def main() -> int:
                     help="REQUIRED for --pose_mode center-rotation (unless --pose_json is "
                          "given): rough rotation (deg) of the z-stack relative to the Xenium "
                          "section.")
-    ap.add_argument("--scale", default="",
-                    help="OPTIONAL for --pose_mode center-rotation: z-stack-to-Xenium scale "
-                         "factor. Blank (default) = the subject's own "
-                         "SubjectConfig.zstack_scale_to_Xenium.")
+    ap.add_argument("--zstack_scale_to_xenium", default="",
+                    help="OPTIONAL: override of the subject's own "
+                         "SubjectConfig.zstack_scale_to_Xenium -- the z-stack-to-Xenium linear "
+                         "PHYSICAL scale factor used to seed the initial pose search. Applies "
+                         "to EVERY --pose_mode alike (not just center-rotation). NOT the same "
+                         "as the fitted affine scale reported in 2p2xenium's own logs/QC (that's "
+                         "a measured output, not an input). Blank (default) = use the subject's "
+                         "own configured value.")
     ap.add_argument("--pose_json", default="",
-                    help="OPTIONAL alternative to --center_um/--rotation_deg/--scale: path "
-                         "to a JSON file {\"center_um\": [x,y], \"rotation_deg\": r, "
-                         "\"scale\": s} (\"scale\" optional). Keys present in the file "
+                    help="OPTIONAL alternative to --center_um/--rotation_deg/"
+                         "--zstack_scale_to_xenium: path to a JSON file {\"center_um\": [x,y], "
+                         "\"rotation_deg\": r, \"zstack_scale_to_xenium\": s} "
+                         "(\"zstack_scale_to_xenium\" optional). Keys present in the file "
                          "override the matching inline flag -- same shape "
                          "xenium_autocoreg.cli's own --pose-json takes.")
     ap.add_argument("--num_cpus", default="",
@@ -162,7 +175,7 @@ def main() -> int:
         except ValueError:
             raise SystemExit(f"--num_cpus must be an integer, got {args.num_cpus!r}")
 
-    center_um, rotation_deg, scale = None, None, None
+    center_um, rotation_deg, zstack_scale_to_xenium = None, None, None
     if args.center_um:
         center_um = _parse_points(args.center_um, 1, "--center_um")[0]
     if args.rotation_deg:
@@ -170,11 +183,12 @@ def main() -> int:
             rotation_deg = float(args.rotation_deg)
         except ValueError:
             raise SystemExit(f"--rotation_deg must be a number, got {args.rotation_deg!r}")
-    if args.scale:
+    if args.zstack_scale_to_xenium:
         try:
-            scale = float(args.scale)
+            zstack_scale_to_xenium = float(args.zstack_scale_to_xenium)
         except ValueError:
-            raise SystemExit(f"--scale must be a number, got {args.scale!r}")
+            raise SystemExit(f"--zstack_scale_to_xenium must be a number, got "
+                             f"{args.zstack_scale_to_xenium!r}")
     if args.pose_json:
         pose_json_path = Path(args.pose_json)
         if not pose_json_path.is_absolute():
@@ -186,8 +200,8 @@ def main() -> int:
             center_um = tuple(data["center_um"])
         if "rotation_deg" in data:
             rotation_deg = data["rotation_deg"]
-        if "scale" in data:
-            scale = data["scale"]
+        if "zstack_scale_to_xenium" in data:
+            zstack_scale_to_xenium = data["zstack_scale_to_xenium"]
 
     if pose_mode == "center-rotation" and (center_um is None or rotation_deg is None):
         raise SystemExit(
@@ -201,7 +215,8 @@ def main() -> int:
     from xenium_autocoreg.cli import run_subject
 
     print(f"[capsule] subject={sid}  pose_mode={pose_mode}  center_um={center_um}  "
-          f"rotation_deg={rotation_deg}  scale={scale}  num_cpus={num_cpus}", flush=True)
+          f"rotation_deg={rotation_deg}  zstack_scale_to_xenium={zstack_scale_to_xenium}  "
+          f"num_cpus={num_cpus}", flush=True)
 
     print(f"[capsule] resolving subject assets under {args.input_dir}", flush=True)
     cfg = subject_resolver.resolve_subject(int(sid), data_root=Path(args.input_dir))
@@ -220,7 +235,8 @@ def main() -> int:
     print(f"[capsule] running xenium_autocoreg.cli.run_subject -> {out}", flush=True)
     summary = run_subject(
         cfg, out, pose_mode=pose_mode, anchor_sec=anchor_sec,
-        center_um=center_um, rotation_deg=rotation_deg, scale=scale,
+        center_um=center_um, rotation_deg=rotation_deg,
+        zstack_scale_to_xenium=zstack_scale_to_xenium,
         num_cpus=num_cpus, verbose=True)
 
     # The package's own working tree for chain_refine (_chain_internal/) is regenerable
@@ -246,7 +262,7 @@ def main() -> int:
         "num_cpus": num_cpus,
         "center_um": list(center_um) if center_um else None,
         "rotation_deg": rotation_deg,
-        "scale": scale,
+        "zstack_scale_to_xenium": zstack_scale_to_xenium,
         "aligned_dir": str(cfg.aligned_dir),
         "zstack_registered_tif": str(cfg.zstack_registered_tif),
         "zstack_segmented_tif": str(cfg.zstack_segmented_tif),
