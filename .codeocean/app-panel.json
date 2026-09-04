@@ -80,6 +80,36 @@
 			"type": "text",
 			"value_type": "integer",
 			"default_value": ""
+		},
+		{
+			"id": "OphysXenZstackRegTif12",
+			"name": "zstack_registered_tif",
+			"param_name": "zstack_registered_tif",
+			"description": "OPTIONAL: pin the exact z-stack registered-intensity .tif, bypassing automatic asset discovery",
+			"help_text": "Use when the registration/segmentation pair you want isn't (or can't be) auto-discovered by subject_resolver -- e.g. a differently-structured derived asset, or a specific sub-acquisition the max-ROI-count rule wouldn't pick. Must be given together with zstack_segmented_tif (same physical acquisition, same shape). Path is resolved relative to /root/capsule/data if not absolute.",
+			"type": "text",
+			"value_type": "string",
+			"default_value": ""
+		},
+		{
+			"id": "OphysXenZstackSegTif13",
+			"name": "zstack_segmented_tif",
+			"param_name": "zstack_segmented_tif",
+			"description": "OPTIONAL: pin the exact z-stack segmentation-label .tif, bypassing automatic asset discovery",
+			"help_text": "Must be given together with zstack_registered_tif -- a mismatched auto+pinned pair would silently combine two different physical acquisitions. Path is resolved relative to /root/capsule/data if not absolute.",
+			"type": "text",
+			"value_type": "string",
+			"default_value": ""
+		},
+		{
+			"id": "OphysXenZstackXyUm14",
+			"name": "zstack_xy_um",
+			"param_name": "zstack_xy_um",
+			"description": "OPTIONAL: override the z-stack lateral pixel size (um/px) for a pinned z-stack pair",
+			"help_text": "Only relevant alongside zstack_registered_tif/zstack_segmented_tif. Blank (default) = keep subject_resolver's own auto-resolved value -- correct as long as the pinned pair shares the same acquisition/FOV calibration the resolver would have auto-selected; verify independently if unsure.",
+			"type": "text",
+			"value_type": "string",
+			"default_value": ""
 		}
 	]
 }

@@ -57,11 +57,24 @@ that's a measured OUTPUT of the registration, not a knob.
 
 (A third, corner-based mode is a documented TODO in ``xenium_autocoreg.pose_seed.seed_from_corners``
 -- not yet implemented upstream, and not exposed here.)
+
+``--zstack_registered_tif``/``--zstack_segmented_tif`` OPTIONALLY pin the exact z-stack files to
+use, bypassing ``subject_resolver``'s automatic ``ophys-z-stacks_*``/``multiplane-ophys_*``
+discovery entirely for this run. Use this when the registration/segmentation pair you want isn't
+(or can't be) auto-discovered -- e.g. a differently-structured derived asset (no ``channel_0_ref_0``
+nesting) that the resolver's fixed globs don't see, or you want a specific channel/sub-acquisition
+the max-ROI-count rule wouldn't pick. Both must be given together (a mismatched auto+pinned pair
+would silently combine two different physical acquisitions). Paths are resolved relative to
+``--input_dir`` if not absolute. ``aligned_dir``/``reporter_zarr_root`` are still resolved
+automatically; ``zstack_xy_um`` still comes from ``subject_resolver``'s own resolution unless
+``--zstack_xy_um`` is also given explicitly (only needed if the pinned pair's calibration differs
+from what the resolver would have auto-selected for this subject).
 """
 import argparse
 import json
 import shutil
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import subject_resolver
@@ -153,6 +166,22 @@ def main() -> int:
                          "extraction, 3D point mapping). Blank/0/a value exceeding this "
                          "machine's CPU count = auto (every available core); 1 = serial, no "
                          "multiprocessing at all. See xenium_autocoreg.resources.resolve_num_cpus.")
+    ap.add_argument("--zstack_registered_tif", default="",
+                    help="OPTIONAL: pin the exact z-stack registered-intensity .tif to use, "
+                         "bypassing subject_resolver's automatic discovery. Must be given "
+                         "together with --zstack_segmented_tif (same physical acquisition, same "
+                         "shape). Resolved relative to --input_dir if not absolute.")
+    ap.add_argument("--zstack_segmented_tif", default="",
+                    help="OPTIONAL: pin the exact z-stack segmentation-label .tif to use, "
+                         "bypassing subject_resolver's automatic discovery. Must be given "
+                         "together with --zstack_registered_tif. Resolved relative to "
+                         "--input_dir if not absolute.")
+    ap.add_argument("--zstack_xy_um", default="",
+                    help="OPTIONAL: override the z-stack lateral pixel size (um/px) for a pinned "
+                         "--zstack_registered_tif/--zstack_segmented_tif pair. Blank (default) = "
+                         "keep subject_resolver's own auto-resolved value (correct as long as the "
+                         "pinned pair shares the same acquisition/FOV calibration the resolver "
+                         "would have picked automatically -- verify this independently if unsure).")
     args = ap.parse_args(_fix_negative_coord_tokens(sys.argv[1:]))
 
     sid = str(args.subject_id).strip()
@@ -209,6 +238,19 @@ def main() -> int:
             "--pose_json with both keys). Got "
             f"center_um={center_um!r} rotation_deg={rotation_deg!r}.")
 
+    if bool(args.zstack_registered_tif) != bool(args.zstack_segmented_tif):
+        raise SystemExit(
+            "--zstack_registered_tif and --zstack_segmented_tif must be given together "
+            f"(a mismatched auto+pinned pair would silently combine two different physical "
+            f"acquisitions). Got zstack_registered_tif={args.zstack_registered_tif!r} "
+            f"zstack_segmented_tif={args.zstack_segmented_tif!r}.")
+    zstack_xy_um_override = None
+    if args.zstack_xy_um:
+        try:
+            zstack_xy_um_override = float(args.zstack_xy_um)
+        except ValueError:
+            raise SystemExit(f"--zstack_xy_um must be a number, got {args.zstack_xy_um!r}")
+
     out = Path(args.output_dir); out.mkdir(parents=True, exist_ok=True)
 
     from xenium_autocoreg.anchor import select_anchor_section
@@ -220,6 +262,26 @@ def main() -> int:
 
     print(f"[capsule] resolving subject assets under {args.input_dir}", flush=True)
     cfg = subject_resolver.resolve_subject(int(sid), data_root=Path(args.input_dir))
+
+    if args.zstack_registered_tif and args.zstack_segmented_tif:
+        def _resolve_pinned(p):
+            p = Path(p)
+            return p if p.is_absolute() else Path(args.input_dir) / p
+        reg_tif = _resolve_pinned(args.zstack_registered_tif)
+        seg_tif = _resolve_pinned(args.zstack_segmented_tif)
+        if not reg_tif.exists():
+            raise SystemExit(f"--zstack_registered_tif not found: {args.zstack_registered_tif!r} "
+                             f"(resolved to {reg_tif})")
+        if not seg_tif.exists():
+            raise SystemExit(f"--zstack_segmented_tif not found: {args.zstack_segmented_tif!r} "
+                             f"(resolved to {seg_tif})")
+        replace_kwargs = {"zstack_registered_tif": reg_tif, "zstack_segmented_tif": seg_tif}
+        if zstack_xy_um_override is not None:
+            replace_kwargs["zstack_xy_um"] = zstack_xy_um_override
+        cfg = replace(cfg, **replace_kwargs)
+        print(f"[capsule] PINNED z-stack override applied (bypassing automatic discovery) -- "
+              f"see the resolved values below:", flush=True)
+
     print(f"[capsule]   aligned_dir            = {cfg.aligned_dir}", flush=True)
     print(f"[capsule]   zstack_registered_tif  = {cfg.zstack_registered_tif}", flush=True)
     print(f"[capsule]   zstack_segmented_tif   = {cfg.zstack_segmented_tif}", flush=True)
@@ -263,6 +325,7 @@ def main() -> int:
         "center_um": list(center_um) if center_um else None,
         "rotation_deg": rotation_deg,
         "zstack_scale_to_xenium": zstack_scale_to_xenium,
+        "zstack_pinned": bool(args.zstack_registered_tif and args.zstack_segmented_tif),
         "aligned_dir": str(cfg.aligned_dir),
         "zstack_registered_tif": str(cfg.zstack_registered_tif),
         "zstack_segmented_tif": str(cfg.zstack_segmented_tif),

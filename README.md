@@ -59,6 +59,9 @@ Parameter names below match `xenium_autocoreg.cli`'s own CLI/`--pose-json` shape
 | `zstack_scale_to_xenium` | optional: override the z-stack-to-Xenium linear PHYSICAL scale factor used to seed the pose search. Applies to **every** `pose_mode` alike (not just center-rotation); blank = subject's own configured value |
 | `pose_json` | optional alternative to the inline fields above: `{"center_um":[x,y],"rotation_deg":r,"zstack_scale_to_xenium":s}` |
 | `num_cpus` | optional: worker-process count for every parallelized stage. Blank/`0`/a value exceeding this machine's CPU count = auto (every available core); `1` = serial, no multiprocessing at all |
+| `zstack_registered_tif` | optional: pin the exact z-stack registered-intensity `.tif`, bypassing `subject_resolver`'s automatic asset discovery. Must be set together with `zstack_segmented_tif` |
+| `zstack_segmented_tif` | optional: pin the exact z-stack segmentation-label `.tif`, bypassing automatic discovery. Must be set together with `zstack_registered_tif` |
+| `zstack_xy_um` | optional: override the z-stack lateral pixel size (um/px) for a pinned pair; blank = keep `subject_resolver`'s own auto-resolved value |
 
 Use `center-rotation` (a rough center/rotation eyeballed from a confocal or vasculature
 image) whenever `auto` fails to find the true pose -- see "Known limitations" below.
@@ -68,6 +71,13 @@ not the same thing as the per-candidate FITTED affine scale reported in 2p2xeniu
 registration, not a knob.
 (A third, corner-based mode is a documented TODO in `xenium_autocoreg.pose_seed.seed_from_corners`
 -- not yet implemented upstream, and not exposed here.)
+
+Use `zstack_registered_tif`/`zstack_segmented_tif` when the reg/seg pair you want isn't (or can't
+be) auto-discovered by `subject_resolver._find_zstack_pair` -- e.g. a derived segmentation asset
+with a different internal layout (no `channel_0_ref_0` nesting) that the resolver's fixed globs
+can't see, even though it has the highest ROI count of any candidate for that subject. Both must
+be set together -- a mismatched auto+pinned pair would silently combine two different physical
+acquisitions.
 
 Set `num_cpus` down (e.g. `1`, for a fully serial run) in a resource-constrained compute
 environment where the default (every available core) gets a run silently killed partway
