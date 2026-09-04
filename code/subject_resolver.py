@@ -163,6 +163,13 @@ def resolve_subject(subject_id: int, data_root: Path, fov_tag: str = "700x700",
     for the pinned pair; when omitted, it's auto-derived from a `roi_groups_metadata.json` found
     near the pinned registered tif (see `_zstack_xy_um_near`), falling back to
     `fallback_fov_um`/`fallback_native_px` if none is found there either."""
+    if (zstack_registered_tif is None) != (zstack_segmented_tif is None):
+        raise ValueError(
+            "zstack_registered_tif and zstack_segmented_tif must be given together (a "
+            "mismatched pinned+auto-discovered pair would silently combine two different "
+            f"physical acquisitions). Got zstack_registered_tif={zstack_registered_tif!r} "
+            f"zstack_segmented_tif={zstack_segmented_tif!r}.")
+
     data_root = Path(data_root)
     aligned = _latest_glob(str(data_root / f"Xenium-ophys-coregistered_{subject_id}_*"))
     if aligned is None:
