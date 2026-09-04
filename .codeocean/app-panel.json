@@ -15,8 +15,8 @@
 			"id": "OphysXenPoseMode02",
 			"name": "pose_mode",
 			"param_name": "pose_mode",
-			"description": "Anchor-section pose-seeding mode: auto | center-rotation | corners",
-			"help_text": "auto (default) = fully automatic blind rotation x position x depth pose search -- no human input, but can fail outright if the true pose sits outside the searched position window. center-rotation = a human provides a rough center (center_um) and rotation (rotation_deg); only a depth sweep then runs automatically -- use this when auto fails. corners = a human provides 4 Xenium tissue-trapezoid corners (xenium_trapezoid_corners_um) + top_edge; NOT YET IMPLEMENTED upstream (2p2xenium xenium_autocoreg.pose_seed.seed_from_corners) -- its parameters are validated and passed through, but the run will fail with NotImplementedError.",
+			"description": "Anchor-section pose-seeding mode: auto | center-rotation",
+			"help_text": "auto (default) = fully automatic blind rotation x position x depth pose search -- no human input, but can fail outright if the true pose sits outside the searched position window. center-rotation = a human provides a rough center (center_um) and rotation (rotation_deg); only a depth sweep then runs automatically -- use this when auto fails.",
 			"type": "text",
 			"value_type": "string",
 			"default_value": "auto"
@@ -55,38 +55,8 @@
 			"id": "OphysXenScale06",
 			"name": "scale",
 			"param_name": "scale",
-			"description": "OPTIONAL for pose_mode=center-rotation or corners: z-stack-to-Xenium scale factor",
+			"description": "OPTIONAL for pose_mode=center-rotation: z-stack-to-Xenium scale factor",
 			"help_text": "Blank (default) = the subject's own SubjectConfig.zstack_scale_to_Xenium (accounts for tissue processing shrink/expansion between modalities). Ignored for pose_mode=auto.",
-			"type": "text",
-			"value_type": "string",
-			"default_value": ""
-		},
-		{
-			"id": "OphysXenXeniumCornersUm08",
-			"name": "xenium_trapezoid_corners_um",
-			"param_name": "xenium_trapezoid_corners_um",
-			"description": "REQUIRED for pose_mode=corners (unless pose_json is set): 4 Xenium tissue-trapezoid corners 'X1,Y1,X2,Y2,X3,Y3,X4,Y4' in um",
-			"help_text": "4 corners of the Xenium tissue trapezoid in the Xenium-aligned frame (um), as 8 comma-separated numbers (x1,y1,x2,y2,x3,y3,x4,y4). Ignored for pose_mode=auto/center-rotation. NOTE: pose_mode=corners is NOT YET IMPLEMENTED upstream (2p2xenium xenium_autocoreg.pose_seed.seed_from_corners) -- this parameter is validated and passed through for forward-compatibility, but the run will fail with NotImplementedError.",
-			"type": "text",
-			"value_type": "string",
-			"default_value": ""
-		},
-		{
-			"id": "OphysXenTopEdge09",
-			"name": "top_edge",
-			"param_name": "top_edge",
-			"description": "REQUIRED for pose_mode=corners (unless pose_json is set): which corner/edge (0-3) is the trapezoid's short/slanted top",
-			"help_text": "Fixes the correspondence order/orientation between xenium_trapezoid_corners_um and the z-stack's 4 corners. Ignored for pose_mode=auto/center-rotation.",
-			"type": "text",
-			"value_type": "integer",
-			"default_value": ""
-		},
-		{
-			"id": "OphysXenZstackCornersUm10",
-			"name": "zstack_corners_um",
-			"param_name": "zstack_corners_um",
-			"description": "OPTIONAL for pose_mode=corners: the z-stack's own 4 corners, same 'X1,Y1,...,X4,Y4' shape as xenium_trapezoid_corners_um",
-			"help_text": "Blank (default) = the z-stack's own canonical FOV rectangle. Ignored for pose_mode=auto/center-rotation.",
 			"type": "text",
 			"value_type": "string",
 			"default_value": ""
@@ -95,8 +65,8 @@
 			"id": "OphysXenPoseJson07",
 			"name": "pose_json",
 			"param_name": "pose_json",
-			"description": "OPTIONAL: path to a JSON file with the pose-mode fields above, instead of the inline fields",
-			"help_text": "For center-rotation: {\"center_um\": [x, y], \"rotation_deg\": r, \"scale\": s} (\"scale\" optional). For corners: {\"xenium_trapezoid_corners_um\": [[x,y]x4], \"top_edge\": 0, \"zstack_corners_um\": [[x,y]x4], \"scale\": s} (\"zstack_corners_um\" and \"scale\" optional). Path is resolved relative to /root/capsule/data if not absolute. Keys present in the file override the matching inline flag above -- same shape xenium_autocoreg.cli's own --pose-json takes.",
+			"description": "OPTIONAL: path to a JSON file with center_um/rotation_deg/scale, instead of the inline fields above",
+			"help_text": "{\"center_um\": [x, y], \"rotation_deg\": r, \"scale\": s} (\"scale\" optional). Path is resolved relative to /root/capsule/data if not absolute. Keys present in the file override the matching inline flag above -- same shape xenium_autocoreg.cli's own --pose-json takes.",
 			"type": "text",
 			"value_type": "string",
 			"default_value": ""

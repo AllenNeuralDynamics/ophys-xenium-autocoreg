@@ -8,7 +8,7 @@ It wraps the `xenium_autocoreg` package from
 [`2p2xenium`](https://github.com/jkim0731/2p2xenium) (installed in `environment/postInstall`).
 The whole pipeline is **GT-free** (no manual ground-truth landmarks are consumed at run
 time -- the initial pose is found automatically, or from a rough human-provided center/
-rotation, or from clicked tissue corners).
+rotation).
 
 `xenium_autocoreg` itself is **data-layout-agnostic** -- it only knows about
 `xenium_autocoreg.config.SubjectConfig` (see its README's "Configuration" section). This
@@ -28,7 +28,7 @@ Clicking **Reproducible Run** executes `code/run` -> `code/run_capsule.py` for o
 subject (`--subject_id`, set via the app panel):
 
 ```
-anchor-section selection -> pose seeding (auto / center-rotation / corners)
+anchor-section selection -> pose seeding (auto / center-rotation)
       |
 tilt fitting  ->  chain-refine propagation (all sections)
       |
@@ -45,31 +45,25 @@ per-stage algorithm detail.
 
 ### Parameters (`.codeocean/app-panel.json`)
 
-`pose_mode` selects which of the 3 pose-seeding protocols seeds the anchor section's
-initial pose. Parameter names below match `xenium_autocoreg.cli`'s own CLI/`--pose-json`
-shape **exactly** (see the 2p2xenium README) -- a single `pose_json` file works unchanged
-against either tool.
+`pose_mode` selects which pose-seeding protocol seeds the anchor section's initial pose.
+Parameter names below match `xenium_autocoreg.cli`'s own CLI/`--pose-json` shape **exactly**
+(see the 2p2xenium README) -- a single `pose_json` file works unchanged against either tool.
 
 | param | meaning |
 |---|---|
 | `subject_id` | subject id, e.g. `816462` (**required**) |
-| `pose_mode` | `auto` (default) fully automatic pose search / `center-rotation` human-seeded / `corners` (not yet implemented upstream, see below) |
+| `pose_mode` | `auto` (default) fully automatic pose search / `center-rotation` human-seeded |
 | `anchor_sec` | Xenium section to run the initial pose search on; blank (default) = auto-select |
 | `center_um` | `center-rotation` only (**required** unless `pose_json` set): rough anchor center `X,Y` (um) |
 | `rotation_deg` | `center-rotation` only (**required** unless `pose_json` set): rough rotation (deg) |
-| `scale` | `center-rotation`/`corners` only (optional): z-stack-to-Xenium scale factor; blank = subject default |
-| `xenium_trapezoid_corners_um` | `corners` only (**required** unless `pose_json` set): 4 Xenium tissue-trapezoid corners, `X1,Y1,X2,Y2,X3,Y3,X4,Y4` (um) |
-| `top_edge` | `corners` only (**required** unless `pose_json` set): which corner/edge (0-3) is the trapezoid's short/slanted top |
-| `zstack_corners_um` | `corners` only (optional): the z-stack's own 4 corners, same shape as `xenium_trapezoid_corners_um`; blank = the z-stack's canonical FOV rectangle |
-| `pose_json` | optional alternative to the inline fields above -- for center-rotation: `{"center_um":[x,y],"rotation_deg":r,"scale":s}`; for corners: `{"xenium_trapezoid_corners_um":[[x,y]x4],"top_edge":0,"zstack_corners_um":[[x,y]x4],"scale":s}` |
+| `scale` | `center-rotation` only (optional): z-stack-to-Xenium scale factor; blank = subject default |
+| `pose_json` | optional alternative to the inline fields above: `{"center_um":[x,y],"rotation_deg":r,"scale":s}` |
 | `num_cpus` | optional: worker-process count for every parallelized stage. Blank/`0`/a value exceeding this machine's CPU count = auto (every available core); `1` = serial, no multiprocessing at all |
 
 Use `center-rotation` (a rough center/rotation eyeballed from a confocal or vasculature
 image) whenever `auto` fails to find the true pose -- see "Known limitations" below.
-`corners` is not yet implemented upstream (`xenium_autocoreg.pose_seed.seed_from_corners`
-raises `NotImplementedError`); its parameters are validated and passed through end-to-end
-today (fails fast, before any expensive registration work) so no capsule changes will be
-needed once it lands.
+(A third, corner-based mode is a documented TODO in `xenium_autocoreg.pose_seed.seed_from_corners`
+-- not yet implemented upstream, and not exposed here.)
 
 Set `num_cpus` down (e.g. `1`, for a fully serial run) in a resource-constrained compute
 environment where the default (every available core) gets a run silently killed partway
@@ -144,6 +138,5 @@ scientific output.
   section can still show shear-driven cell-shape distortion.
 - `pose_mode=auto` can fail outright if the true pose sits outside the searched position
   window; switch to `pose_mode=center-rotation` when it does.
-- `pose_mode=corners` is not implemented upstream (`pose_seed.seed_from_corners`) and will
-  fail the run with `NotImplementedError` -- its parameters (`xenium_trapezoid_corners_um`,
-  `top_edge`, `zstack_corners_um`) are already wired through end-to-end.
+- A third, corner-based pose-seeding mode is a documented TODO upstream
+  (`pose_seed.seed_from_corners`) -- not exposed via `pose_mode` here.
