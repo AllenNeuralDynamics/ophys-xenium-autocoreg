@@ -83,7 +83,10 @@ would silently combine two different physical acquisitions.
 
 Set `num_cpus` down (e.g. `1`, for a fully serial run) in a resource-constrained compute
 environment where the default (every available core) gets a run silently killed partway
-through with no traceback -- this happened during development of this capsule.
+through with no traceback -- this happened during development of this capsule. (This capsule
+does not expose `xenium_autocoreg.resources.resolve_num_cpus`'s `reserve_cpus` knob, which
+defaults to `0` -- no cores withheld -- upstream; wire it through if a small automatic buffer
+turns out to be worth exposing here too.)
 
 ### Inputs (attach as data assets, mounted under `/root/capsule/data`)
 The subject is resolved by glob via this capsule's own `subject_resolver.resolve_subject`
